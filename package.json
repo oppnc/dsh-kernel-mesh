@@ -1,0 +1,52 @@
+{
+  "name": "dsh-kernel-mesh",
+  "version": "0.1.2",
+  "description": "Host-plane kernel mesh for DeepSeek Harness: kimi/grok/codex/minimax kernel adapters, L2 subagent recipes, and kernel tools.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/search-backends.js",
+    "cordis.patch.yml",
+    "LICENSE",
+    "README.md",
+    "README.zh.md",
+    "README.i18n.yaml",
+    "AGENTS.md",
+    "AGENTS.zh-CN.md",
+    "docs/"
+  ],
+  "scripts": {
+    "test": "node --check lib/index.js && node --check lib/search-backends.js && node test/wire.test.js && node test/cred-paths.test.js && node test/search-offer.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "kimi",
+    "grok",
+    "codex",
+    "minimax"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oppnc/dsh-kernel-mesh.git"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+# dsh-kernel-mesh bundle patch: registers the foreign-harness kernel adapters
+# (kimi-kernel / grok-kernel / codex-kernel / minimax-kernel), their L2
+# subagent providers, and the kernel_* tools on the host plane.
+- insert:
+    - id: kernel-mesh
+      name: dsh-kernel-mesh

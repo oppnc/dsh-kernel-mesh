@@ -1,0 +1,83 @@
+English | [中文](README.zh.md)
+
+# dsh-kernel-mesh
+
+DSH runs on one simple idea: **everything is a plugin**. Models, tools, subagents — plug them together however you like.
+
+So we did exactly that: we turned four coding harnesses — **Kimi Code**, **Grok Build**, **OpenAI Codex**, and **MiniMax Mini-Agent** — into DSH plugins, bundled in this one package.
+
+The payoff is simple: switch to a Kimi / Grok / Codex / MiniMax model inside DSH, and it's **no different** from opening each one's own CLI. Every model stays in the environment it knows best — main agent or subagent, it feels like coming home.
+
+## What's inside
+
+- **L1 kernel routes** — `kimi-kernel` / `grok-kernel` / `codex-kernel` / `minimax-kernel`, registered as DSH model routes your main agent can switch to.
+- **L2 subagent recipes** — `kimi-agent` / `kimi-explore` / `kimi-plan`, `grok-agent` / `grok-explore`, `codex-agent` / `codex-explore`, `minimax-agent`.
+- **Three kernel tools** — `kernel_status`, `kernel_run`, `kernel_switch`.
+- **Vendor search tools, offered only when opted in** — `kimi_search` / `kimi_fetch` appear only if `dsh-kernel-kimi` is installed **and** a Moonshot credential exists; `grok_search` / `grok_fetch` appear only if `dsh-kernel-grok` is installed **and** a Grok OAuth credential exists. They stay separate tools (different corpora). Official `web_search` is DeepSeek's own search and is not a wrapper.
+
+## Kernel matrix
+
+| Kernel | Wire | Endpoint |
+| --- | --- | --- |
+| `kimi-kernel` | Anthropic Messages | `https://api.kimi.com/coding/v1/messages` (kimi-cli **1.49.0**: `max_tokens` clamped to remaining context; catalog includes `k3`) |
+| `grok-kernel` | Responses (proxy) | `https://cli-chat-proxy.grok.com/v1/responses` |
+| `codex-kernel` | Responses (custom) | your codex `base_url` + `/responses` |
+| `minimax-kernel` | Anthropic Messages (CN) | `https://api.minimaxi.com/anthropic/v1/messages` |
+
+## Install
+
+Copy this directory into your profile's `node_modules` and register it as a bundle:
+
+```sh
+cp -r dsh-kernel-mesh ~/.dsh/profiles/node_modules/dsh-kernel-mesh
+```
+
+Then add `"dsh-kernel-mesh"` to `dsh.profile.bundles` in `~/.dsh/profiles/web/package.json` and restart:
+
+```sh
+dsh web
+```
+
+Once pnpm works in your environment, you can install straight from GitHub:
+
+```sh
+dsh plugin --profile web add github:oppnc/dsh-kernel-mesh
+```
+
+## Usage
+
+```sh
+kernel_status                          # which kernels, L2 types, transports are registered
+kernel_run(kernel, type, task)         # fan a task out to a foreign kernel
+kernel_switch('kimi')                  # set the default model route for future sessions
+```
+
+| Kernel | `type` values |
+| --- | --- |
+| `kimi` | `coder`, `explore`, `plan` |
+| `grok` | `general`, `explore` |
+| `codex` | `general`, `explore` |
+| `minimax` | `general` |
+
+## Screenshots
+
+The whole family on GitHub — every README has a one-tap language switch:
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/01-mesh-readme-en.png" alt="dsh-kernel-mesh README (EN)" width="410"></td>
+    <td><img src="docs/screenshots/02-mesh-readme-zh.png" alt="dsh-kernel-mesh README (中文)" width="410"></td>
+    <td><img src="docs/screenshots/03-kimi-readme.png" alt="dsh-kernel-kimi README" width="410"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/04-grok-readme.png" alt="dsh-kernel-grok README" width="410"></td>
+    <td><img src="docs/screenshots/05-codex-readme.png" alt="dsh-kernel-codex README" width="410"></td>
+    <td><img src="docs/screenshots/06-minimax-readme.png" alt="dsh-kernel-minimax README" width="410"></td>
+  </tr>
+</table>
+
+Full-size images live in [`docs/screenshots/`](docs/screenshots/).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
