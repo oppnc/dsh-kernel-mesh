@@ -1,6 +1,6 @@
 {
   "name": "dsh-kernel-mesh",
-  "version": "0.1.2",
+  "version": "1.0.3",
   "description": "Host-plane kernel mesh for DeepSeek Harness: kimi/grok/codex/minimax kernel adapters, L2 subagent recipes, and kernel tools.",
   "type": "module",
   "main": "lib/index.js",
@@ -15,6 +15,7 @@
     "cordis.patch.yml",
     "LICENSE",
     "README.md",
+    "CHANGELOG.md",
     "README.zh.md",
     "README.i18n.yaml",
     "AGENTS.md",

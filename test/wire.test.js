@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import http from 'node:http'
 import * as plugin from '../lib/index.js'
 
-const { makeAnthropicAdapter, makeResponsesAdapter, anthropicImageBlock, estimateTextTokens, clampKimiMaxTokens, kimiCompletionBudgetFromEnv } = plugin._test
+const { makeAnthropicAdapter, makeResponsesAdapter, anthropicImageBlock, responsesImageBlock, buildResponsesInput, estimateTextTokens, clampKimiMaxTokens, kimiCompletionBudgetFromEnv } = plugin._test
 
 let assertionCount = 0
 let testCount = 0
@@ -904,6 +904,74 @@ async function testImages() {
   } finally {
     await stub.close()
   }
+
+  // Responses wire: input_image content part.
+  const carriedResp = await responsesImageBlock(
+    { type: 'image', attachment: 'att_1' },
+    {
+      attachments: {
+        async readImage(id) {
+          eq(id, 'att_1', 'responses readImage receives the attachment id')
+          return { data: png, ref: { mediaType: 'image/png' } }
+        },
+      },
+    },
+  )
+  deep(carriedResp, {
+    type: 'input_image',
+    image_url: 'data:image/png;base64,' + b64,
+  }, 'responsesImageBlock with attachments.readImage')
+
+  const missingResp = await responsesImageBlock({ type: 'image', attachment: 'att_x' }, {})
+  eq(missingResp, null, 'responses: no attachments service → skip the image block')
+
+  const inputNoImage = await buildResponsesInput('sys', [
+    { role: 'user', content: [{ type: 'text', text: 'hi' }] },
+  ], {})
+  deep(inputNoImage[1], { type: 'message', role: 'user', content: 'hi' }, 'responses: text-only user keeps single-string content shape')
+
+  const stubResp = await startStub((_rec, res) => {
+    jsonHeaders(res)
+    res.end(JSON.stringify({
+      id: 'resp_img',
+      status: 'completed',
+      output: [{ type: 'message', content: [{ type: 'output_text', text: 'saw it' }] }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }))
+  })
+  try {
+    const adapter = responsesAdapter(stubResp.url, {
+      attachments: {
+        async readImage() {
+          return { data: png, ref: { mediaType: 'image/png' } }
+        },
+      },
+    })
+    await collect(adapter.stream({
+      model: 'stub-model',
+      maxTokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'look' },
+          { type: 'image', attachment: 'att_1' },
+        ],
+      }],
+    }))
+    const input = stubResp.requests[0].json.input
+    check(Array.isArray(input), 'e2e responses image: input list on the wire')
+    const userMsg = input.find((it) => it && it.type === 'message' && it.role === 'user')
+    check(userMsg && Array.isArray(userMsg.content), 'e2e responses image: user content is a parts array')
+    const imgPart = userMsg.content.find((p) => p && p.type === 'input_image')
+    deep(imgPart, {
+      type: 'input_image',
+      image_url: 'data:image/png;base64,' + b64,
+    }, 'e2e: input_image content part on the Responses wire')
+    const textPart = userMsg.content.find((p) => p && p.type === 'input_text')
+    deep(textPart, { type: 'input_text', text: 'look' }, 'e2e: text part rides alongside the image')
+  } finally {
+    await stubResp.close()
+  }
 }
 
 // ---------- 10. kimi-cli 1.49 completion-token clamp ----------
@@ -964,7 +1032,7 @@ const TESTS = [
   ['6 responses SSE + [DONE] + CRLF', testResponsesSse],
   ['7 responses JSON fallback + errors', testResponsesFallback],
   ['8 responses SSE error / response.failed', testResponsesSseErrors],
-  ['9 anthropic images', testImages],
+  ['9 images (anthropic + responses)', testImages],
   ['10 kimi 1.49 completion clamp', testKimiClamp],
 ]
 
@@ -973,6 +1041,8 @@ async function main() {
   check(typeof makeAnthropicAdapter === 'function', 'makeAnthropicAdapter exported')
   check(typeof makeResponsesAdapter === 'function', 'makeResponsesAdapter exported')
   check(typeof anthropicImageBlock === 'function', 'anthropicImageBlock exported')
+  check(typeof responsesImageBlock === 'function', 'responsesImageBlock exported')
+  check(typeof buildResponsesInput === 'function', 'buildResponsesInput exported')
 
   for (const [name, fn] of TESTS) {
     await fn()

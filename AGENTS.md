@@ -16,11 +16,13 @@ MiniMax Mini-Agent — available inside DSH as first-class citizens, at three la
   `codex-kernel`, and `minimax-kernel` as DSH model *routes*. Any session or
   agent preset can then select those providers in the model picker, so the main
   agent itself runs on a foreign kernel.
-- **L2** (`subagents.registerProvider`): registers distilled *subagent recipes*
-  (`kimi-agent`, `kimi-explore`, `kimi-plan`, `grok-agent`, `grok-explore`,
-  `codex-agent`, `codex-explore`, `minimax-agent`). These wrap DSH's built-in
-  `spawn` provider and force the subagent onto a specific kernel + model with a
-  fixed persona and tool filter, mirroring each harness's own subagent types.
+- **L2** (`subagents.registerProvider`): registers each kernel's own subagent
+  recipes (`kimi-agent`/`kimi-explore`/`kimi-plan`, `grok-agent`/`grok-explore`/
+  `grok-plan`, `codex-explore`). The recipes live in each vendor plugin's
+  `lib/subagents.js` (loaded dynamically by the mesh) and carry the upstream
+  subagent prompts. minimax has no subagent tool upstream, so it contributes no
+  recipes. These wrap DSH's built-in `spawn` provider and force the subagent
+  onto a specific kernel + model with a fixed persona and tool filter.
 - **Tools** (`tools.register`): `kernel_status`, `kernel_run`, `kernel_switch`,
   plus vendor search tools that are **opt-in per subscription**:
   `kimi_search`/`kimi_fetch` only when `dsh-kernel-kimi` is installed and a
@@ -354,20 +356,22 @@ top-level `model` key, which feeds both the `codex-kernel` model catalog and
 
 ## 6. L2 recipe table
 
-Each recipe in `RECIPES` pairs a kernel+model with a persona (distilled from the
-source harness's own subagent prompt) and a `toolFilter` allow-list. `kernel_run`
-maps `kernel` + `type` onto these recipe names.
+Each recipe pairs a kernel+model with a persona (the vendor's own subagent
+prompt, composed in the vendor plugin's `lib/subagents.js`) and a `toolFilter`
+allow-list. `kernel_run` maps `kernel` + `type` onto these recipe names.
 
 | Recipe name | provider | model | toolFilter (allow) |
 | --- | --- | --- | --- |
-| `kimi-agent` | `kimi-kernel` | `k3-256k` | `pwsh` `read` `read_image` `glob` `grep` `write` `edit` `web_search` |
-| `kimi-explore` | `kimi-kernel` | `k3-256k` | `pwsh` `read` `read_image` `glob` `grep` `web_search` |
-| `kimi-plan` | `kimi-kernel` | `k3-256k` | `read` `read_image` `glob` `grep` `web_search` (no shell, no write) |
-| `grok-agent` | `grok-kernel` | `grok-4.6` | `pwsh` `read` `read_image` `glob` `grep` `write` `edit` `web_search` `subagent` `subagent_fork` |
-| `grok-explore` | `grok-kernel` | `grok-4.6` | `pwsh` `read` `read_image` `glob` `grep` `web_search` |
-| `codex-agent` | `codex-kernel` | (from config) | `pwsh` `read` `read_image` `glob` `grep` `write` `edit` `web_search` |
-| `codex-explore` | `codex-kernel` | (from config) | `pwsh` `read` `read_image` `glob` `grep` `web_search` |
-| `minimax-agent` | `minimax-kernel` | `MiniMax-M2.7` | `pwsh` `read` `read_image` `glob` `grep` `write` `edit` `web_search` |
+| `kimi-agent` | `kimi-kernel` | `k3-256k` | `Shell` `ReadFile` `WriteFile` `StrReplaceFile` `Glob` `Grep` `SearchWeb` `FetchURL` `ReadMediaFile` `Agent` `TaskList` `TaskOutput` `TaskStop` `SetTodoList` `AskUserQuestion` `EnterPlanMode` `ExitPlanMode` |
+| `kimi-explore` | `kimi-kernel` | `k3-256k` | `Shell` `ReadFile` `ReadMediaFile` `Glob` `Grep` `SearchWeb` `FetchURL` |
+| `kimi-plan` | `kimi-kernel` | `k3-256k` | `ReadFile` `ReadMediaFile` `Glob` `Grep` `SearchWeb` `FetchURL` (no shell, no write) |
+| `grok-agent` | `grok-kernel` | `grok-4.6` | `run_terminal_cmd` `read_file` `search_replace` `list_dir` `grep` `web_search` `web_fetch` `todo_write` `task` `get_task_output` `kill_task` `ask_user_question` `enter_plan_mode` `exit_plan_mode` |
+| `grok-explore` | `grok-kernel` | `grok-4.6` | `read_file` `list_dir` `grep` (read-only, no shell, no web) |
+| `grok-plan` | `grok-kernel` | `grok-4.6` | `read_file` `list_dir` `grep` `web_search` `todo_write` (read-only, no shell, no edit) |
+| `codex-explore` | `codex-kernel` | (from config) | `exec_command` `view_file` `view_image` `glob` `grep` `web_search` |
+| `codex-worker` | `codex-kernel` | (from config) | `exec_command` `apply_patch` `write_file` `edit_file` `view_file` `view_image` `glob` `grep` `web_search` `update_plan` `request_user_input` `list_tasks` `task_output` `task_stop` `sleep` |
+
+minimax has no subagent type upstream, so there is no `minimax-agent` recipe.
 
 `kernel_run` accepts `type` per kernel:
 
@@ -381,12 +385,38 @@ maps `kernel` + `type` onto these recipe names.
 The `explore` / `plan` variants are strict read-only specializations; the agent
 variants carry `write`/`edit` (and, for Grok, subagent-spawning) privileges.
 
+### Vendor tool surface on children (parent-independent)
+
+DSH's `spawn` provider hardcodes `composeFrom(parent)`, so a child normally
+inherits the PARENT's preset tools. To make `kernel_run(kimi, …)` give the child
+the KIMI tool surface regardless of the parent's preset, the mesh mounts the
+vendor plugin on the child in the `agent/created` listener (which fires before
+the child's first turn, for BOTH the continuable background path and the
+one-shot foreground path):
+
+1. `recipeForKernelChild(agent)` resolves the recipe from
+   `agent.options.kernelSubagentType` (fresh creation) or, on cold resume, from
+   the persisted persona in the seeded `subagent/descriptor` session event;
+2. the listener mounts the vendor plugin on `agent.ctx` with
+   `{ skipPersona: true }` (tools only — the persona is already registered from
+   the request/descriptor), then
+3. `tools.restrict({ allow: recipe.toolFilter.allow })` to the subagent's own
+   tool set.
+
+The vendor plugin modules are pre-loaded at `apply()` time (`VENDOR_MODULES`) so
+the synchronous listener can mount them. `kernel_run` and the L2 provider's
+`start` therefore do NOT put `toolFilter` in the request — the listener applies
+it after the tools exist. `kernelSubagentType` is carried in `agentOptions`
+(merge-extensible, like `reasoningEffort`).
+
 ### Lazy L2 registration (`ensureL2`)
 
 `subagents` may not have its `spawn` provider registered yet when this row
 applies at boot (registration order is not guaranteed). So L2 recipe providers
 are registered **lazily**: `ensureL2()` runs at `apply()` time *and* on every
-`kernel_run` / `kernel_status` call, retrying until `spawn` is visible. It only
+`kernel_run` / `kernel_status` call, retrying until `spawn` is visible. The
+recipes themselves are loaded once at `apply()` time via `loadVendorRecipes()`
+(dynamic import of each vendor plugin's `lib/subagents.js`). `ensureL2` only
 registers a recipe if (a) it isn't already registered and (b) its backing kernel
 adapter is actually registered in `llm.listProviders()` — so a missing credential
 never leaves a dangling subagent type pointing at a nonexistent route.
@@ -432,13 +462,17 @@ upstream or harness changes beyond this package.
    curl `-m` wall-clock cap**: cancellation is AbortSignal-driven end to end,
    and the idle-gap bounding native adapters get from their 300 s watchdog is
    approximated by the harness-level cancellation path.
-7. **Responses-wire images are skipped.** The Anthropic-wire factories
-   (kimi, minimax) resolve DSH `image` blocks through the durable attachments
-   service (`attachments.readImage`, the same channel the native pi-ai adapter
-   uses via `config.resolveAttachments`) and emit standard Anthropic base64
-   `image` blocks. Unreadable attachments are omitted. The Responses-wire
-   factories (grok, codex) omit image blocks — the grok CLI proxy's
-   `input_image` support is unverified.
+7. **Responses-wire images are carried as `input_image` parts (proxy support
+   unverified).** The Anthropic-wire factories (kimi, minimax) resolve DSH
+   `image` blocks through the durable attachments service
+   (`attachments.readImage`, the same channel the native pi-ai adapter uses via
+   `config.resolveAttachments`) and emit standard Anthropic base64 `image`
+   blocks. The Responses-wire factories (grok, codex) now do the same through
+   `responsesImageBlock`, emitting a `{ type: 'input_image', image_url:
+   'data:<mediaType>;base64,<data>' }` content part inside the user message.
+   Unreadable attachments are omitted on both wires. The grok CLI proxy's
+   `input_image` support is still unverified — if it rejects the part, adapt
+   the shape in `responsesImageBlock` (the single choke point).
 
 ---
 
@@ -449,7 +483,7 @@ the wire code changes.
 
 1. **Headless CLI smoke test.** From a DSH session on the host plane, invoke
    `kernel_status` and confirm all expected kernels (for which credentials exist)
-   and all 9 L2 recipe providers are listed.
+   and all 7 L2 recipe providers are listed.
 2. **Tool-loop tests.** Drive `kernel_run` against each kernel/type pair with a
    trivial task (e.g. "list files in the workspace"). The default background
    route must return `{ kind: 'continuable', ok: true, subagentId }` and the
@@ -483,7 +517,7 @@ the wire code changes.
 4. **Register the adapter** in `apply()`, guarded by the credential presence, with
    `tag`, `name`, `url`, `headers`, `models`, and (responses wire) `efforts` /
    `defaultEffort` / `mapEffort`.
-5. **Add L2 recipes** to `RECIPES` (persona distilled from the harness's own
+5. **Add L2 recipes** to the vendor plugin's `lib/subagents.js` (persona = the harness's own
    subagent prompt, plus an appropriate `toolFilter`), and extend the `TYPE_MAP`
    in `kernel_run`.
 6. **Extend `kernel_switch`'s map** to include the new route and a `deepseek`

@@ -68,16 +68,11 @@ function testRecipeFilterDoesNotNameMissingTools() {
   check(!filter.allow.includes('grok_search') || extra.includes('grok_search'), 'never names unoffered grok_search')
 }
 
-function testRecipeFilterDropsUnknownGlobals() {
+function testRecipeFilterPassesThroughVendorNames() {
   const extra = availableSearchTools()
-  const recipe = { toolFilter: { allow: ['read', 'glob', 'web_search'] } }
-  const known = ['read', 'web_search', 'kimi_search', 'grok_search', 'kimi_fetch', 'grok_fetch']
-  const viaSchemas = recipeToolFilter(recipe, { schemas: () => known.map((name) => ({ name })) })
-  check(!viaSchemas.allow.includes('glob'), 'drops glob when schemas() does not list it')
-  check(viaSchemas.allow.includes('read'), 'keeps registered read via schemas()')
-  const viaGet = recipeToolFilter(recipe, { get: (name) => known.includes(name) ? { name } : undefined })
-  check(!viaGet.allow.includes('glob'), 'drops glob when get() says it is absent')
-  check(viaGet.allow.includes('web_search'), 'keeps registered web_search via get()')
+  const recipe = { toolFilter: { allow: ['Shell', 'ReadFile', 'run_terminal_cmd', 'exec_command'] } }
+  const viaSchemas = recipeToolFilter(recipe, { schemas: () => ['read', 'web_search'].map((name) => ({ name })) })
+  deep(viaSchemas.allow, recipe.toolFilter.allow.concat(extra), 'vendor tool names pass through unfiltered (they live in the kernel preset scope, not the host registry)')
   for (const name of extra) check(viaSchemas.allow.includes(name), 'keeps offered ' + name)
 }
 
@@ -105,7 +100,7 @@ const TESTS = [
   ['offer matches catalog', testOfferMatchesCatalog],
   ['available tools only offered', testAvailableToolsOnlyOffered],
   ['recipe filter omits missing tools', testRecipeFilterDoesNotNameMissingTools],
-  ['recipe filter drops unknown globals', testRecipeFilterDropsUnknownGlobals],
+  ['recipe filter passes through vendor names', testRecipeFilterPassesThroughVendorNames],
   ['workspace sibling counts as installed', testWorkspaceSiblingCountsAsInstalled],
   ['formatters', testFormatters],
 ]

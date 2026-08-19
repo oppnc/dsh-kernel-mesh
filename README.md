@@ -11,7 +11,7 @@ The payoff is simple: switch to a Kimi / Grok / Codex / MiniMax model inside DSH
 ## What's inside
 
 - **L1 kernel routes** — `kimi-kernel` / `grok-kernel` / `codex-kernel` / `minimax-kernel`, registered as DSH model routes your main agent can switch to.
-- **L2 subagent recipes** — `kimi-agent` / `kimi-explore` / `kimi-plan`, `grok-agent` / `grok-explore`, `codex-agent` / `codex-explore`, `minimax-agent`.
+- **L2 subagent recipes** — `kimi-agent` / `kimi-explore` / `kimi-plan`, `grok-agent` / `grok-explore` / `grok-plan`, `codex-explore` / `codex-worker` (each kernel's own subagent types; minimax has none upstream). Each recipe carries the vendor's own subagent prompt and tool whitelist, so a kernel subagent sees and uses exactly what that harness's subagent would — independent of the parent's preset.
 - **Three kernel tools** — `kernel_status`, `kernel_run`, `kernel_switch`.
 - **Vendor search tools, offered only when opted in** — `kimi_search` / `kimi_fetch` appear only if `dsh-kernel-kimi` is installed **and** a Moonshot credential exists; `grok_search` / `grok_fetch` appear only if `dsh-kernel-grok` is installed **and** a Grok OAuth credential exists. They stay separate tools (different corpora). Official `web_search` is DeepSeek's own search and is not a wrapper.
 
@@ -23,6 +23,28 @@ The payoff is simple: switch to a Kimi / Grok / Codex / MiniMax model inside DSH
 | `grok-kernel` | Responses (proxy) | `https://cli-chat-proxy.grok.com/v1/responses` |
 | `codex-kernel` | Responses (custom) | your codex `base_url` + `/responses` |
 | `minimax-kernel` | Anthropic Messages (CN) | `https://api.minimaxi.com/anthropic/v1/messages` |
+
+### System prompts
+
+Each kernel plugin registers the vendor's own upstream system prompt as the
+agent's sole system-prompt section (`complete: true` + `suppressRuntimeContext()`),
+so a session on a kernel sees ONLY that harness's prompt — not DSH's.
+
+### Fallback routes
+
+When a kernel's own API is out of quota, set `DSH_KERNEL_USE_FALLBACK=1` (default
+on) to route the kernels through your existing subscriptions:
+
+| Kernel | Fallback route | Model |
+| --- | --- | --- |
+| `kimi-kernel` | ollama | `kimi-k2.7-code` |
+| `grok-kernel` | ollama | `gpt-oss:120b` |
+| `codex-kernel` | opencode-go | `gpt-5.6-luna` |
+| `minimax-kernel` | ollama | `minimax-m3` |
+
+Keys are read from `~/.dsh/.credentials.yaml` (`OLLAMA_API_KEY`,
+`MY_OPENCODE_GO_API_KEY`). Set `DSH_KERNEL_USE_FALLBACK=0` to force the official
+kernel APIs.
 
 ## Install
 
@@ -55,9 +77,9 @@ kernel_switch('kimi')                  # set the default model route for future 
 | Kernel | `type` values |
 | --- | --- |
 | `kimi` | `coder`, `explore`, `plan` |
-| `grok` | `general`, `explore` |
-| `codex` | `general`, `explore` |
-| `minimax` | `general` |
+| `grok` | `general`, `explore`, `plan` |
+| `codex` | `explore`, `worker` |
+| `minimax` | (none — no subagent tool upstream) |
 
 ## Screenshots
 
