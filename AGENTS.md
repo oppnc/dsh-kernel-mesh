@@ -316,10 +316,11 @@ verified against real traffic.
 - Headers: `content-type`, `authorization: Bearer <key>`,
   `anthropic-version: 2023-06-01`, `user-agent`.
 - Reuses the Anthropic adapter with model-dependent thinking:
-  - **M2 models** (`MiniMax-M2*`): `thinkingFor` returns `null` → **always-think
-    disabled** (default behavior, no `thinking` block sent).
-  - **M3 models** (`MiniMax-M3`, others): `thinkingFor` returns
-    `{ type: 'adaptive' }` → **adaptive thinking**.
+  - **M2 models** (`MiniMax-M2*`): `thinkingFor` returns `null` → **no
+    `thinking` block sent** (matches Mini-Agent's Anthropic client, which sends
+    only `model` / `max_tokens` / `messages`).
+  - **Other models**: `thinkingFor` returns `{ type: 'adaptive' }` → adaptive
+    thinking.
 
 ---
 

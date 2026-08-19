@@ -170,8 +170,8 @@ export function apply(ctx) { /* ... */ }
 - URL：`https://api.minimaxi.com/anthropic/v1/messages`，国内直连（无代理）。
 - Headers：`content-type`、`authorization: Bearer <key>`、`anthropic-version: 2023-06-01`、`user-agent`。
 - 复用 Anthropic 适配器，思考模式按模型区分：
-  - **M2 模型**（`MiniMax-M2*`）：`thinkingFor` 返回 `null` → **始终思考关闭**（默认行为，不发送 `thinking` block）。
-  - **M3 模型**（`MiniMax-M3` 等）：`thinkingFor` 返回 `{ type: 'adaptive' }` → **自适应思考**。
+  - **M2 模型**（`MiniMax-M2*`）：`thinkingFor` 返回 `null` → **不发送 `thinking` block**（与 Mini-Agent 的 Anthropic 客户端一致，只发送 `model` / `max_tokens` / `messages`）。
+  - **其他模型**：`thinkingFor` 返回 `{ type: 'adaptive' }` → 自适应思考。
 
 ---
 
@@ -205,7 +205,7 @@ export function apply(ctx) { /* ... */ }
 | `grok-explore` | `grok-kernel` | `grok-4.6` | `pwsh` `read` `read_image` `glob` `grep` `web_search` |
 | `codex-agent` | `codex-kernel` |（来自配置） | `pwsh` `read` `read_image` `glob` `grep` `write` `edit` `web_search` |
 | `codex-explore` | `codex-kernel` |（来自配置） | `pwsh` `read` `read_image` `glob` `grep` `web_search` |
-| `minimax-agent` | `minimax-kernel` | `MiniMax-M2.7` | `pwsh` `read` `read_image` `glob` `grep` `write` `edit` `web_search` |
+| `minimax-agent` | `minimax-kernel` | `MiniMax-M2.5` | `pwsh` `read` `read_image` `glob` `grep` `write` `edit` `web_search` |
 
 `kernel_run` 按内核接受 `type`：
 
