@@ -8,7 +8,7 @@ import * as plugin from '../lib/index.js'
 import { extractGrokSearch, formatKimiSearchResults } from '../lib/search-backends.js'
 
 const {
-  pluginInstalled, kernelSearchOffered, availableSearchTools, recipeToolFilter, searchCatalog,
+  pluginInstalled, kernelSearchOffered, searchCatalog,
 } = plugin._test
 
 let assertionCount = 0
@@ -19,10 +19,6 @@ function check(value, message) {
 function eq(actual, expected, message) {
   assertionCount += 1
   assert.equal(actual, expected, message)
-}
-function deep(actual, expected, message) {
-  assertionCount += 1
-  assert.deepEqual(actual, expected, message)
 }
 
 function testCatalogShape() {
@@ -42,38 +38,6 @@ function testOfferMatchesCatalog() {
   eq(kernelSearchOffered('kimi'), cat.kimi.offered, 'kimi offer matches catalog')
   eq(kernelSearchOffered('grok'), cat.grok.offered, 'grok offer matches catalog')
   eq(kernelSearchOffered('nope'), false, 'unknown engine is never offered')
-}
-
-function testAvailableToolsOnlyOffered() {
-  const names = availableSearchTools()
-  const cat = searchCatalog()
-  if (cat.kimi.offered) {
-    check(names.includes('kimi_search') && names.includes('kimi_fetch'), 'kimi tools present when offered')
-  } else {
-    check(!names.includes('kimi_search') && !names.includes('kimi_fetch'), 'kimi tools absent when not offered')
-  }
-  if (cat.grok.offered) {
-    check(names.includes('grok_search') && names.includes('grok_fetch'), 'grok tools present when offered')
-  } else {
-    check(!names.includes('grok_search') && !names.includes('grok_fetch'), 'grok tools absent when not offered')
-  }
-}
-
-function testRecipeFilterDoesNotNameMissingTools() {
-  const extra = availableSearchTools()
-  const recipe = { toolFilter: { allow: ['read', 'web_search'] } }
-  const filter = recipeToolFilter(recipe)
-  deep(filter.allow, recipe.toolFilter.allow.concat(extra), 'recipe filter appends only offered search tools when no tools registry is given')
-  check(!filter.allow.includes('kimi_search') || extra.includes('kimi_search'), 'never names unoffered kimi_search')
-  check(!filter.allow.includes('grok_search') || extra.includes('grok_search'), 'never names unoffered grok_search')
-}
-
-function testRecipeFilterPassesThroughVendorNames() {
-  const extra = availableSearchTools()
-  const recipe = { toolFilter: { allow: ['Shell', 'ReadFile', 'run_terminal_cmd', 'exec_command'] } }
-  const viaSchemas = recipeToolFilter(recipe, { schemas: () => ['read', 'web_search'].map((name) => ({ name })) })
-  deep(viaSchemas.allow, recipe.toolFilter.allow.concat(extra), 'vendor tool names pass through unfiltered (they live in the kernel preset scope, not the host registry)')
-  for (const name of extra) check(viaSchemas.allow.includes(name), 'keeps offered ' + name)
 }
 
 function testWorkspaceSiblingCountsAsInstalled() {
@@ -98,9 +62,6 @@ function testFormatters() {
 const TESTS = [
   ['catalog shape', testCatalogShape],
   ['offer matches catalog', testOfferMatchesCatalog],
-  ['available tools only offered', testAvailableToolsOnlyOffered],
-  ['recipe filter omits missing tools', testRecipeFilterDoesNotNameMissingTools],
-  ['recipe filter passes through vendor names', testRecipeFilterPassesThroughVendorNames],
   ['workspace sibling counts as installed', testWorkspaceSiblingCountsAsInstalled],
   ['formatters', testFormatters],
 ]

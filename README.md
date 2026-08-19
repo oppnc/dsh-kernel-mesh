@@ -30,10 +30,12 @@ Each kernel plugin registers the vendor's own upstream system prompt as the
 agent's sole system-prompt section (`complete: true` + `suppressRuntimeContext()`),
 so a session on a kernel sees ONLY that harness's prompt — not DSH's.
 
-### Fallback routes
+### Fallback routes (opt-in)
 
-When a kernel's own API is out of quota, set `DSH_KERNEL_USE_FALLBACK=1` (default
-on) to route the kernels through your existing subscriptions:
+The vendors have no fallback of their own, so by default each kernel uses its
+official API. If a kernel's own API is out of quota, set
+`DSH_KERNEL_USE_FALLBACK=1` to route the kernels through your existing
+subscriptions instead:
 
 | Kernel | Fallback route | Model |
 | --- | --- | --- |
@@ -43,8 +45,8 @@ on) to route the kernels through your existing subscriptions:
 | `minimax-kernel` | ollama | `minimax-m3` |
 
 Keys are read from `~/.dsh/.credentials.yaml` (`OLLAMA_API_KEY`,
-`MY_OPENCODE_GO_API_KEY`). Set `DSH_KERNEL_USE_FALLBACK=0` to force the official
-kernel APIs.
+`MY_OPENCODE_GO_API_KEY`). Leave `DSH_KERNEL_USE_FALLBACK` unset (or `0`) for
+the official kernel APIs.
 
 ## Install
 

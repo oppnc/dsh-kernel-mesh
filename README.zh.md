@@ -30,10 +30,11 @@ DSH 有个很朴素的想法：**一切都是插件**。模型是插件，工具
 system-prompt 段（`complete: true` + `suppressRuntimeContext()`），所以跑在某个
 内核上的会话只会看到那家 harness 的提示词，而不是 DSH 的。
 
-### 回退路由
+### 回退路由（可选）
 
-当某个内核自己的 API 额度耗尽时，设置 `DSH_KERNEL_USE_FALLBACK=1`（默认开启）
-即可把内核路由到你已有的订阅：
+各家厂商本身没有回退机制，因此默认每个内核都走自己的官方 API。当某个内核
+自己的 API 额度耗尽时，设置 `DSH_KERNEL_USE_FALLBACK=1` 即可把内核路由到你
+已有的订阅：
 
 | Kernel | 回退路由 | 模型 |
 | --- | --- | --- |
@@ -43,7 +44,8 @@ system-prompt 段（`complete: true` + `suppressRuntimeContext()`），所以跑
 | `minimax-kernel` | ollama | `minimax-m3` |
 
 密钥从 `~/.dsh/.credentials.yaml` 读取（`OLLAMA_API_KEY`、
-`MY_OPENCODE_GO_API_KEY`）。设 `DSH_KERNEL_USE_FALLBACK=0` 可强制走官方内核 API。
+`MY_OPENCODE_GO_API_KEY`）。不设置（或设为 `0`）`DSH_KERNEL_USE_FALLBACK` 即走
+官方内核 API。
 
 ## 安装
 
