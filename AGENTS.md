@@ -362,14 +362,15 @@ allow-list. `kernel_run` maps `kernel` + `type` onto these recipe names.
 
 | Recipe name | provider | model | toolFilter (allow) |
 | --- | --- | --- | --- |
-| `kimi-agent` | `kimi-kernel` | `k3-256k` | `Shell` `ReadFile` `WriteFile` `StrReplaceFile` `Glob` `Grep` `SearchWeb` `FetchURL` `ReadMediaFile` `Agent` `TaskList` `TaskOutput` `TaskStop` `SetTodoList` `AskUserQuestion` `EnterPlanMode` `ExitPlanMode` |
+| `kimi-agent` | `kimi-kernel` | `k3-256k` | `Shell` `ReadFile` `WriteFile` `StrReplaceFile` `Glob` `Grep` `SearchWeb` `FetchURL` `ReadMediaFile` `TaskList` `TaskOutput` `TaskStop` `SetTodoList` `EnterPlanMode` `ExitPlanMode` |
 | `kimi-explore` | `kimi-kernel` | `k3-256k` | `Shell` `ReadFile` `ReadMediaFile` `Glob` `Grep` `SearchWeb` `FetchURL` |
 | `kimi-plan` | `kimi-kernel` | `k3-256k` | `ReadFile` `ReadMediaFile` `Glob` `Grep` `SearchWeb` `FetchURL` (no shell, no write) |
 | `grok-agent` | `grok-kernel` | `grok-4.6` | `run_terminal_cmd` `read_file` `search_replace` `list_dir` `grep` `web_search` `web_fetch` `todo_write` `task` `get_task_output` `kill_task` `ask_user_question` `enter_plan_mode` `exit_plan_mode` |
 | `grok-explore` | `grok-kernel` | `grok-4.6` | `read_file` `list_dir` `grep` (read-only, no shell, no web) |
 | `grok-plan` | `grok-kernel` | `grok-4.6` | `read_file` `list_dir` `grep` `web_search` `todo_write` (read-only, no shell, no edit) |
-| `codex-explore` | `codex-kernel` | (from config) | `exec_command` `view_file` `view_image` `glob` `grep` `web_search` |
-| `codex-worker` | `codex-kernel` | (from config) | `exec_command` `apply_patch` `write_file` `edit_file` `view_file` `view_image` `glob` `grep` `web_search` `update_plan` `request_user_input` `list_tasks` `task_output` `task_stop` `sleep` |
+| `codex-agent` | `codex-kernel` | (from config) | full Codex surface (all 28 tools) |
+| `codex-explore` | `codex-kernel` | (from config) | full Codex surface (all 28 tools) |
+| `codex-worker` | `codex-kernel` | (from config) | full Codex surface (all 28 tools) |
 
 minimax has no subagent type upstream, so there is no `minimax-agent` recipe.
 
@@ -378,9 +379,10 @@ minimax has no subagent type upstream, so there is no `minimax-agent` recipe.
 | Kernel | `type` values | default |
 | --- | --- | --- |
 | `kimi` | `coder` `explore` `plan` | `coder` |
-| `grok` | `general` `explore` | `general` |
-| `codex` | `general` `explore` | `general` |
-| `minimax` | `general` | `general` |
+| `grok` | `general` `explore` `plan` | `general` |
+| `codex` | `explore` `worker` | `explore` |
+
+minimax has no subagent type upstream, so `kernel_run` rejects `minimax`.
 
 The `explore` / `plan` variants are strict read-only specializations; the agent
 variants carry `write`/`edit` (and, for Grok, subagent-spawning) privileges.
