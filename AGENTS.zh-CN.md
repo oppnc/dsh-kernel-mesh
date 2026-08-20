@@ -9,7 +9,7 @@
 `dsh-kernel-mesh` 是 DeepSeek Harness（DSH）的一个**宿主侧（host-plane）Cordis bundle**。它把外来的编码 harness——Kimi Code、Grok Build、OpenAI Codex、MiniMax Mini-Agent——以一等公民的身份接入 DSH，分三层：
 
 - **L1**（`llm.registerAdapter`）：把 `kimi-kernel`、`grok-kernel`、`codex-kernel`、`minimax-kernel` 注册为 DSH 模型*路由*。任何会话或 agent 预设随后都能在模型选择器中选中这些 provider，从而让主 agent 本身就运行在外来内核上。
-- **L2**（`subagents.registerProvider`）：注册蒸馏出来的*子代理配方*（`kimi-agent`、`kimi-explore`、`kimi-plan`、`grok-agent`、`grok-explore`、`codex-agent`、`codex-explore`、`minimax-agent`）。它们包装 DSH 内置的 `spawn` provider，把子代理强制绑定到特定内核 + 模型，并使用固定的 persona 与工具过滤，逐一对应各 harness 自身的子代理类型。
+- **L2**（`subagents.registerProvider`）：注册各家内核自己的*子代理配方*（`kimi-agent`/`kimi-explore`/`kimi-plan`、`grok-agent`/`grok-explore`/`grok-plan`、`codex-agent`/`codex-explore`/`codex-worker`）。它们包装 DSH 内置的 `spawn` provider，把子代理强制绑定到特定内核 + 模型，并使用固定的 persona 与工具过滤，逐一对应各 harness 自身的子代理类型。
 - **工具**（`tools.register`）：`kernel_status`、`kernel_run`、`kernel_switch`，以及按订阅选择接入的厂商搜索工具：仅当已安装 `dsh-kernel-kimi` 且存在 Moonshot 凭证时才注册 `kimi_search`/`kimi_fetch`；仅当已安装 `dsh-kernel-grok` 且存在 Grok OAuth 凭证时才注册 `grok_search`/`grok_fetch`。官方 `ctx.web` 一次只能钉一个 `searchProvider`，所以这些保持为并列的模型可见工具。不要假设每个用户都订阅了每一家。
 
 插件以两个文件加元数据的形式交付：
@@ -74,11 +74,11 @@ export function apply(ctx) { /* ... */ }
 
 子代理 *provider* 支撑一个或多个对 `subagents.list()` 可见的 L2 子代理*类型*。这个 provider 对象必须实现：
 
-- **`capabilities`** —— 能力描述符对象。配方从被包装的 `spawn` provider 逐字复制它，让蒸馏出的子代理表现得像原生 spawn 子代理。
+- **`capabilities`** —— 能力描述符对象。配方从被包装的 `spawn` provider 逐字复制它，让上游子代理表现得像原生 spawn 子代理。
 - **`inheritsParentContext`** —— 布尔值；同样从 `spawn` 复制。
 - **`start(request) -> Promise<Run>`** —— 启动一个子代理运行，返回一个句柄，句柄至少具备 `result`（resolve 为 `{ output, stopReason, ... }`）和 `dispose()`。配方把 `request` 转发给 `spawn.start`，仅在调用方未显式设置时覆盖三个字段：
   - `agentOptions.provider` / `agentOptions.model` —— 强制内核 + 模型，
-  - `persona` —— 配方的蒸馏 persona，
+  - `persona` —— 配方的上游 persona，
   - `toolFilter` —— 配方的允许列表。
 - **`prepareContinuable(request) -> Promise<{ seed? }>`** —— *可续接能力*：该方法的存在本身即授权原生后台路由 `subagents.startContinuable({ provider, label, request, signal })`；它在收件箱受理时以 `{ childId, messageId }` resolve，从不等待回合执行。配方逐字转发给 `spawn.prepareContinuable`。**关键是，可续接路径从不调用 `provider.start()`** —— continuation manager 依据持久 descriptor 自行创建子代理，descriptor 恰好记录请求中的 `agentOptions.provider`/`model`、`persona` 与 `toolFilter` 供冷恢复。因此调用方（即 `kernel_run`）必须把这些配方字段显式设置在请求上；上面的 `start()` 覆盖只覆盖一次性路径。
 
@@ -194,7 +194,7 @@ export function apply(ctx) { /* ... */ }
 
 ## 6. L2 配方表
 
-`RECIPES` 中每个配方都把「内核 + 模型」与一个 persona（蒸馏自源 harness 自身的子代理提示词）和一个 `toolFilter` 允许列表配对。`kernel_run` 把 `kernel` + `type` 映射到这些配方名。
+`RECIPES` 中每个配方都把「内核 + 模型」与一个 persona（来自源 harness 自身的子代理提示词）和一个 `toolFilter` 允许列表配对。`kernel_run` 把 `kernel` + `type` 映射到这些配方名。
 
 | 配方名 | provider | model | toolFilter（允许） |
 | --- | --- | --- | --- |
@@ -254,7 +254,7 @@ export function apply(ctx) { /* ... */ }
 2. **选择或扩展工厂。** Anthropic-wire 目标复用 `makeAnthropicAdapter(opts)`；Responses-wire 目标复用 `makeResponsesAdapter(opts)`。若都不是这两种 wire，则新增一个工厂，使其严格发出 §3.3 中描述的 block 事件契约。
 3. **在 `loadCredentials()` 里添加凭据加载**，针对新配置位置，并在 `apply()` 里添加模型目录条目。
 4. **在 `apply()` 里注册适配器**，以凭据存在与否为守卫，带上 `tag`、`name`、`url`、`headers`、`models`，以及（responses-wire 下）`efforts` / `defaultEffort` / `mapEffort`。
-5. **向 `RECIPES` 添加 L2 配方**（persona 蒸馏自该 harness 自身的子代理提示词，附带合适的 `toolFilter`），并扩展 `kernel_run` 里的 `TYPE_MAP`。
+5. **向 `RECIPES` 添加 L2 配方**（persona 来自该 harness 自身的子代理提示词，附带合适的 `toolFilter`），并扩展 `kernel_run` 里的 `TYPE_MAP`。
 6. **扩展 `kernel_switch` 的映射**，加入新路由，并保留 `deepseek` 回退到 `deepseek-official/deepseek-v4-pro`。
 7. **更新 `kernel_status` 的过滤列表**，纳入新的 provider id。
 8. **按 §8 测试**，并把所有新的 wire 怪癖记录到 §4、新的空白记录到 §7。

@@ -11,7 +11,7 @@ The payoff is simple: switch to a Kimi / Grok / Codex / MiniMax model inside DSH
 ## What's inside
 
 - **L1 kernel routes** — `kimi-kernel` / `grok-kernel` / `codex-kernel` / `minimax-kernel`, registered as DSH model routes your main agent can switch to.
-- **L2 subagent recipes** — `kimi-agent` / `kimi-explore` / `kimi-plan`, `grok-agent` / `grok-explore` / `grok-plan`, `codex-explore` / `codex-worker` (each kernel's own subagent types; minimax has none upstream). Each recipe carries the vendor's own subagent prompt and tool whitelist, so a kernel subagent sees and uses exactly what that harness's subagent would — independent of the parent's preset.
+- **L2 subagent recipes** — `kimi-agent` / `kimi-explore` / `kimi-plan`, `grok-agent` / `grok-explore` / `grok-plan`, `codex-agent` / `codex-explore` / `codex-worker` (each kernel's own subagent types; minimax has none upstream). Each recipe carries the vendor's own subagent prompt and tool whitelist, so a kernel subagent sees and uses exactly what that harness's subagent would — independent of the parent's preset.
 - **Three kernel tools** — `kernel_status`, `kernel_run`, `kernel_switch`.
 - **Vendor search tools, offered only when opted in** — `kimi_search` / `kimi_fetch` appear only if `dsh-kernel-kimi` is installed **and** a Moonshot credential exists; `grok_search` / `grok_fetch` appear only if `dsh-kernel-grok` is installed **and** a Grok OAuth credential exists. They stay separate tools (different corpora). Official `web_search` is DeepSeek's own search and is not a wrapper.
 
@@ -26,9 +26,10 @@ The payoff is simple: switch to a Kimi / Grok / Codex / MiniMax model inside DSH
 
 ### System prompts
 
-Each kernel plugin registers the vendor's own upstream system prompt as the
-agent's sole system-prompt section (`complete: true` + `suppressRuntimeContext()`),
-so a session on a kernel sees ONLY that harness's prompt — not DSH's.
+Each kernel plugin registers the vendor's upstream system prompt (tool names and
+runtime placeholders adapted to the DSH tool surface) as the agent's sole
+system-prompt section (`complete: true` + `suppressRuntimeContext()`), so a
+session on a kernel sees ONLY that harness's prompt — not DSH's.
 
 ### Fallback routes (opt-in)
 

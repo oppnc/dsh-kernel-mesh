@@ -18,11 +18,12 @@ MiniMax Mini-Agent — available inside DSH as first-class citizens, at three la
   agent itself runs on a foreign kernel.
 - **L2** (`subagents.registerProvider`): registers each kernel's own subagent
   recipes (`kimi-agent`/`kimi-explore`/`kimi-plan`, `grok-agent`/`grok-explore`/
-  `grok-plan`, `codex-explore`). The recipes live in each vendor plugin's
-  `lib/subagents.js` (loaded dynamically by the mesh) and carry the upstream
-  subagent prompts. minimax has no subagent tool upstream, so it contributes no
-  recipes. These wrap DSH's built-in `spawn` provider and force the subagent
-  onto a specific kernel + model with a fixed persona and tool filter.
+  `grok-plan`, `codex-agent`/`codex-explore`/`codex-worker`). The recipes live
+  in each vendor plugin's `lib/subagents.js` (loaded dynamically by the mesh)
+  and carry the upstream subagent prompts. minimax has no subagent tool
+  upstream, so it contributes no recipes. These wrap DSH's built-in `spawn`
+  provider and force the subagent onto a specific kernel + model with a fixed
+  persona and tool filter.
 - **Tools** (`tools.register`): `kernel_status`, `kernel_run`, `kernel_switch`,
   plus vendor search tools that are **opt-in per subscription**:
   `kimi_search`/`kimi_fetch` only when `dsh-kernel-kimi` is installed and a
@@ -144,7 +145,7 @@ A subagent *provider* backs one or more L2 subagent *types* visible to
 `subagents.list()`. The provider object must implement:
 
 - **`capabilities`** — a capabilities descriptor object. The recipes copy this
-  verbatim from the wrapped `spawn` provider so the distilled subagents behave
+  verbatim from the wrapped `spawn` provider so the upstream subagents behave
   like native spawn subagents.
 - **`inheritsParentContext`** — boolean; likewise copied from `spawn`.
 - **`start(request) -> Promise<Run>`** — spawns one subagent run and returns a
@@ -152,7 +153,7 @@ A subagent *provider* backs one or more L2 subagent *types* visible to
   `dispose()`. The recipes forward `request` to `spawn.start`, overriding three
   fields only when the caller did not already set them:
   - `agentOptions.provider` / `agentOptions.model` — force the kernel+model,
-  - `persona` — the recipe's distilled persona,
+  - `persona` — the recipe's upstream persona,
   - `toolFilter` — the recipe's allow-list.
 - **`prepareContinuable(request) -> Promise<{ seed? }>`** — the *continuable
   capability*: its mere presence authorizes the native background route,
