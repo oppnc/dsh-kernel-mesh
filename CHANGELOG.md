@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Proxy is env-driven, not hardcoded.** Kernel HTTP now honors
+  `HTTPS_PROXY`/`https_proxy`/`HTTP_PROXY`/`http_proxy` and defaults to a direct
+  connection; the hardcoded `http://127.0.0.1:7897` broke machines without a
+  local proxy.
+- **Vendor home overrides.** `GROK_HOME`, `KIMI_CODE_HOME`, and `CODEX_HOME`
+  are honored when locating grok/kimi/codex credentials.
+
 ## 0.1.4
 
 - **Subagent recipes are the single source of truth.** `kernel_run` and the L2

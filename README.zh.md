@@ -49,22 +49,16 @@ system-prompt 段（`complete: true` + `suppressRuntimeContext()`），所以跑
 
 ## 安装
 
-把本目录复制进你的 profile 的 `node_modules`，并把它注册为一个 bundle：
-
-```sh
-cp -r dsh-kernel-mesh ~/.dsh/profiles/node_modules/dsh-kernel-mesh
-```
-
-然后在 `~/.dsh/profiles/web/package.json` 的 `dsh.profile.bundles` 里加上 `"dsh-kernel-mesh"`，并重启：
-
-```sh
-dsh web
-```
-
-待你的环境中 pnpm 可用后，也可以直接从 GitHub 安装：
+用官方插件命令把 bundle 装进你的 profile：
 
 ```sh
 dsh plugin --profile web add github:oppnc/dsh-kernel-mesh
+```
+
+`dsh plugin` 会转发给 pnpm，并自动 reconcile `dsh.profile.bundles`——本包声明了 `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`，因此会加入 profile 的配置层栈。装完后重启 profile：
+
+```sh
+dsh web
 ```
 
 ## 使用

@@ -51,22 +51,16 @@ the official kernel APIs.
 
 ## Install
 
-Copy this directory into your profile's `node_modules` and register it as a bundle:
-
-```sh
-cp -r dsh-kernel-mesh ~/.dsh/profiles/node_modules/dsh-kernel-mesh
-```
-
-Then add `"dsh-kernel-mesh"` to `dsh.profile.bundles` in `~/.dsh/profiles/web/package.json` and restart:
-
-```sh
-dsh web
-```
-
-Once pnpm works in your environment, you can install straight from GitHub:
+Install the bundle into your profile with the official plugin command:
 
 ```sh
 dsh plugin --profile web add github:oppnc/dsh-kernel-mesh
+```
+
+`dsh plugin` forwards to pnpm and reconciles `dsh.profile.bundles` automatically — this package declares `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`, so it joins the profile's layer stack. Restart the profile afterwards:
+
+```sh
+dsh web
 ```
 
 ## Usage
