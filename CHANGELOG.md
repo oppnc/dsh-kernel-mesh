@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.4
+## 0.1.4
 
 - **Subagent recipes are the single source of truth.** `kernel_run` and the L2
   providers set `persona`/`toolFilter`/`agentOptions` from the vendor recipes,
@@ -16,7 +16,7 @@
 - **Scattered fixes.** kimi OAuth `X-Msh-Version` 1.49.0; `kimi_search` default
   limit 5; removed dead `recipeToolFilter`/`availableSearchTools`.
 
-## 1.0.3
+## 0.1.3
 
 - **L2 subagent recipes now live in the vendor plugins.** Each kernel plugin ships
   `lib/subagents.js` with its own upstream subagent prompts; the mesh loads them
