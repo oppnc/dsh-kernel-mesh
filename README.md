@@ -13,6 +13,7 @@ The payoff is simple: switch to a Kimi / Grok / Codex / MiniMax model inside DSH
 - **L1 kernel routes** — `kimi-kernel` / `grok-kernel` / `codex-kernel` / `minimax-kernel`, registered as DSH model routes your main agent can switch to.
 - **L2 subagent recipes** — `kimi-agent` / `kimi-explore` / `kimi-plan`, `grok-agent` / `grok-explore` / `grok-plan`, `codex-agent` / `codex-explore` / `codex-worker` (each kernel's own subagent types; minimax has none upstream). Each recipe carries the vendor's own subagent prompt and tool whitelist, so a kernel subagent sees and uses exactly what that harness's subagent would — independent of the parent's preset.
 - **Three kernel tools** — `kernel_status`, `kernel_run`, `kernel_switch`.
+- **Four agent presets** — `codex-kernel`, `grok-kernel`, `kimi-kernel`, and `minimax-kernel` ship in this package's `presets/` directory. Copy them into the official user-preset root (`~/.dsh/.agent-presets/`) to make them appear in the preset picker (the official DSH CLI owns the shipped preset root, so a bundle cannot register extra roots).
 - **Vendor search tools, offered only when opted in** — `kimi_search` / `kimi_fetch` appear only if `dsh-kernel-kimi` is installed **and** a Moonshot credential exists; `grok_search` / `grok_fetch` appear only if `dsh-kernel-grok` is installed **and** a Grok OAuth credential exists. They stay separate tools (different corpora). Official `web_search` is DeepSeek's own search and is not a wrapper.
 
 ## Kernel matrix
@@ -62,6 +63,21 @@ dsh plugin --profile web add github:oppnc/dsh-kernel-mesh
 ```sh
 dsh web
 ```
+
+Install the kernel surface plugins the presets reference (each is a plain plugin, installed as an inactive dependency and resolved by name from the preset rows):
+
+```sh
+dsh plugin --profile web add github:oppnc/dsh-kernel-kimi github:oppnc/dsh-kernel-grok github:oppnc/dsh-kernel-codex github:oppnc/dsh-kernel-minimax
+```
+
+Install the four kernel agent presets by copying them from the installed mesh package into the official user-preset root:
+
+```sh
+dsh_home="${DSH_HOME:-$HOME/.dsh}"
+cp -r "$dsh_home/profiles/web/node_modules/dsh-kernel-mesh/presets/." "$dsh_home/.agent-presets/"
+```
+
+Then start a new session and pick the `codex-kernel`, `grok-kernel`, `kimi-kernel`, or `minimax-kernel` preset in the Web UI.
 
 ## Usage
 

@@ -13,6 +13,7 @@ DSH 有个很朴素的想法：**一切都是插件**。模型是插件，工具
 - **L1 内核路由**：`kimi-kernel` / `grok-kernel` / `codex-kernel` / `minimax-kernel`，注册成 DSH 的模型路由，主 agent 可以直接切过去跑。
 - **L2 子代理配方**：`kimi-agent` / `kimi-explore` / `kimi-plan`、`grok-agent` / `grok-explore` / `grok-plan`、`codex-agent` / `codex-explore` / `codex-worker`（各家自己的子代理类型；minimax 上游没有子代理工具，故不提供）。每个配方都带该厂商自己的子代理 prompt 和工具白名单，所以内核子代理看到和使用的，与那家 harness 的子代理完全一致——与父 preset 无关。
 - **三个内核工具**：`kernel_status`、`kernel_run`、`kernel_switch`。
+- **四个 agent 预设**：`codex-kernel`、`grok-kernel`、`kimi-kernel`、`minimax-kernel` 随本包的 `presets/` 目录分发。把它们复制到官方用户预设根目录（`~/.dsh/.agent-presets/`）后即出现在预设选择器里（官方 DSH CLI 拥有自带预设根目录，bundle 无法注册额外根目录）。
 - **厂商搜索工具，只在用户选择接入时出现**：`kimi_search` / `kimi_fetch` 仅在已安装 `dsh-kernel-kimi` **并且**存在 Moonshot 凭证时注册；`grok_search` / `grok_fetch` 仅在已安装 `dsh-kernel-grok` **并且**存在 Grok OAuth 凭证时注册。它们是并列工具（语料不同），不是一个后端。官方 `web_search` 仍是 DeepSeek 自己的搜索，不是包装器。
 
 ## 内核矩阵
@@ -60,6 +61,21 @@ dsh plugin --profile web add github:oppnc/dsh-kernel-mesh
 ```sh
 dsh web
 ```
+
+再安装预设所引用的内核 surface 插件（每个都是普通插件，作为不激活依赖安装，由预设行按名字解析）：
+
+```sh
+dsh plugin --profile web add github:oppnc/dsh-kernel-kimi github:oppnc/dsh-kernel-grok github:oppnc/dsh-kernel-codex github:oppnc/dsh-kernel-minimax
+```
+
+安装四个内核 agent 预设：从已安装的 mesh 包里复制到官方用户预设根目录：
+
+```sh
+dsh_home="${DSH_HOME:-$HOME/.dsh}"
+cp -r "$dsh_home/profiles/web/node_modules/dsh-kernel-mesh/presets/." "$dsh_home/.agent-presets/"
+```
+
+然后新建会话，在 Web UI 里选择 `codex-kernel`、`grok-kernel`、`kimi-kernel` 或 `minimax-kernel` 预设。
 
 ## 使用
 

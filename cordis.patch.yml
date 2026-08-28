@@ -1,6 +1,11 @@
 # dsh-kernel-mesh bundle patch: registers the foreign-harness kernel adapters
 # (kimi-kernel / grok-kernel / codex-kernel / minimax-kernel), their L2
 # subagent providers, and the kernel_* tools on the host plane.
+#
+# NOTE: this bundle also SHIPS the four kernel agent presets in presets/.
+# They are not registered as a preset root here because the official dsh CLI
+# overwrites agent-presets.roots with the shipped preset root; install them
+# by copying presets/* into ~/.dsh/.agent-presets/ (see README).
 - insert:
     - id: kernel-mesh
       name: dsh-kernel-mesh

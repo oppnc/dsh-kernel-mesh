@@ -1,0 +1,2 @@
+name: Mini-Agent kernel
+description: Mini-Agent 内核主代理：persona 取自 mini-agent 上游 system_prompt.md（DSH 形式改写），完整编码工具集。模型路由在会话模型选择器里选 minimax-kernel / MiniMax-M2.5（需先在 ~/.mini-agent/config.yaml 放 API key）。

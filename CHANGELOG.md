@@ -8,6 +8,11 @@
   local proxy.
 - **Vendor home overrides.** `GROK_HOME`, `KIMI_CODE_HOME`, and `CODEX_HOME`
   are honored when locating grok/kimi/codex credentials.
+- **Agent presets ship with the bundle.** `presets/` carries the four kernel
+  presets (`codex-kernel` / `grok-kernel` / `kimi-kernel` / `minimax-kernel`);
+  copy them into `~/.dsh/.agent-presets/` to install. (A bundle cannot
+  register extra preset roots because the official dsh CLI overwrites
+  `agent-presets.roots` with its own shipped root.)
 
 ## 0.1.4
 

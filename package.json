@@ -13,6 +13,7 @@
     "lib/index.js",
     "lib/search-backends.js",
     "cordis.patch.yml",
+    "presets/",
     "LICENSE",
     "README.md",
     "CHANGELOG.md",

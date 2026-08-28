@@ -1,0 +1,2 @@
+name: Grok Build kernel
+description: Grok Build 内核主代理：persona 取自 grok-build 上游 prompt（DSH 形式改写），完整编码工具集。模型路由在会话模型选择器里选 grok-kernel / grok-4.6。
