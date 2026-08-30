@@ -1023,7 +1023,78 @@ async function testKimiClamp() {
 
 // ---------- runner ----------
 
+// dsh-llm >= 0.1.1-rc.2 calls adapter.prepareCall(provider, model, signal) on
+// the exact-model path; a missing method fails every turn with
+// "registration.adapter.prepareCall is not a function". Assert the contract on
+// both factories offline (no network: the stream entry point is never invoked).
+async function testPrepareCallContract() {
+  for (const [label, adapter] of [['anthropic', anthropicAdapter('http://127.0.0.1:1/unused')], ['responses', responsesAdapter('http://127.0.0.1:1/unused')]]) {
+    check(typeof adapter.prepareCall === 'function', label + ' adapter exposes prepareCall (dsh-llm 0.1.1-rc.2 contract)')
+    const prepared = await adapter.prepareCall('stub-provider', 'stub-model')
+    check(prepared && typeof prepared === 'object', label + ' prepareCall resolves to an object')
+    check(prepared.model && prepared.model.provider === 'stub-provider' && prepared.model.id === 'stub-model', label + ' prepareCall returns resolved model info')
+    check(typeof prepared.stream === 'function', label + ' prepareCall returns a stream entry point')
+  }
+}
+
+// ---------- 11. kimi-code 0.39.1 wire body shape ----------
+
+async function testKimi039Body() {
+  const stub = await startStub((_rec, res) => {
+    jsonHeaders(res)
+    res.end(JSON.stringify({
+      type: 'message',
+      role: 'assistant',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }))
+  })
+  try {
+    const adapter = anthropicAdapter(stub.url + '?beta=true', {
+      clampToRemainingContext: true,
+      clampHardCap: 128000,
+      systemCacheControl: true,
+      models: [{ id: 'k3-256k', name: 'Kimi K3-256K', contextWindow: 262144, defaultMaxTokens: 131072 }],
+      thinkingFor: () => ({ type: 'enabled' }),
+      extraBodyFor: (model, effort) => ({
+        output_config: { effort: ['low', 'medium', 'high', 'xhigh', 'max'].indexOf(effort) >= 0 ? effort : 'high' },
+        context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] },
+        metadata: { user_id: 'session_test-uuid' },
+      }),
+    })
+    await collect(adapter.stream({
+      model: 'k3-256k',
+      reasoningEffort: 'xhigh',
+      system: 'sys',
+      messages: USER_HI,
+    }))
+    const j = stub.requests[0].json
+    deep(j.thinking, { type: 'enabled' }, '0.39.1 thinking is a bare enabled block (no budget_tokens)')
+    deep(j.output_config, { effort: 'xhigh' }, '0.39.1 output_config carries the reasoning effort')
+    deep(j.context_management, { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] }, '0.39.1 context_management edits')
+    deep(j.metadata, { user_id: 'session_test-uuid' }, '0.39.1 metadata.user_id')
+    deep(j.system, [{ type: 'text', text: 'sys', cache_control: { type: 'ephemeral' } }], '0.39.1 system is one cached text block')
+    eq(j.max_tokens, 128000, 'small request sends the 128000 hard cap (FALLBACK_MAX_TOKENS)')
+
+    // default/unknown effort collapses to high
+    await collect(adapter.stream({ model: 'k3-256k', system: 's', messages: USER_HI }))
+    eq(stub.requests[1].json.output_config.effort, 'high', 'unknown effort maps to high')
+
+    // session-title: no thinking and NO extras
+    await collect(adapter.stream({ model: 'k3-256k', purpose: 'session-title', system: 's', messages: USER_HI }))
+    const t = stub.requests[2].json
+    check(!('thinking' in t), 'session-title sends no thinking block')
+    check(!('output_config' in t), 'session-title sends no output_config')
+    check(!('context_management' in t), 'session-title sends no context_management')
+    check(!('metadata' in t), 'session-title sends no metadata')
+  } finally {
+    await stub.close()
+  }
+}
+
 const TESTS = [
+  ['0 adapter prepareCall contract (dsh-llm 0.1.1-rc.2)', testPrepareCallContract],
   ['1 anthropic SSE (tiny chunks, incremental)', testAnthropicSse],
   ['2 anthropic JSON fallback', testAnthropicJsonFallback],
   ['3 anthropic role filter + merge', testAnthropicRoleFilter],
@@ -1034,6 +1105,7 @@ const TESTS = [
   ['8 responses SSE error / response.failed', testResponsesSseErrors],
   ['9 images (anthropic + responses)', testImages],
   ['10 kimi 1.49 completion clamp', testKimiClamp],
+  ['11 kimi-code 0.39.1 wire body shape', testKimi039Body],
 ]
 
 async function main() {

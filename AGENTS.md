@@ -32,7 +32,10 @@ MiniMax Mini-Agent — available inside DSH as first-class citizens, at three la
   `ctx.web` can pin only one `searchProvider`, so these stay as separate
   model-facing tools. Never assume every user subscribed to every kernel.
 
-The plugin is delivered as two files plus metadata:
+The plugin is delivered as two files plus metadata. Since 0.1.6 `apply()` also
+provides a tiny marker service (`ctx.provide('kernelMesh', { version })`): vendor
+packages depend on the mesh and fallback-mount it when the host composition did
+not; the marker (plus the `*-kernel` route check) is their idempotence guard.
 
 - `lib/index.js` — the entire host plugin (`export { name, inject, apply }`).
 - `cordis.patch.yml` — the bundle patch that inserts a `kernel-mesh` row into
@@ -112,6 +115,13 @@ implement:
   model id to `{ provider, id, name, context: { contextWindow }, defaultMaxTokens }`.
   Unknown ids fall through to a generous default (200k context / 32768 tokens).
   Responses-wire adapters additionally attach `reasoning: { efforts, defaultEffort }`.
+- **`prepareCall(provider, model, signal) -> Promise<{ model, stream }>`** —
+  **required since dsh-llm 0.1.1-rc.2.** The service calls this on the
+  exact-model path (agent loop and `llm.stream`) and binds the returned
+  one-generation `stream` entry point to the dispatch. Both factories implement
+  the base-class default: `model` from `resolveModel`, `stream` closing over
+  `this.stream`. Omitting it kills every turn with
+  `registration.adapter.prepareCall is not a function` (wire test 0 guards it).
 - **`stream(options) -> AsyncGenerator<Block>`** — the heart. `options` carries
   `model`, `messages`, `system`, `tools`, `maxTokens`, and (for responses wire)
   `reasoningEffort`, plus an AbortSignal. The generator must **yield DSH block
@@ -150,11 +160,15 @@ A subagent *provider* backs one or more L2 subagent *types* visible to
 - **`inheritsParentContext`** — boolean; likewise copied from `spawn`.
 - **`start(request) -> Promise<Run>`** — spawns one subagent run and returns a
   handle with at least `result` (resolving to `{ output, stopReason, ... }`) and
-  `dispose()`. The recipes forward `request` to `spawn.start`, overriding three
+  `dispose()`. The recipes forward `request` to `spawn.start`, overriding two
   fields only when the caller did not already set them:
   - `agentOptions.provider` / `agentOptions.model` — force the kernel+model,
-  - `persona` — the recipe's upstream persona,
-  - `toolFilter` — the recipe's allow-list.
+  - `persona` — the recipe's upstream persona.
+  (`toolFilter` is intentionally NOT forwarded: since dsh-tools 0.1.1-rc.2,
+  `tools.restrict()` accepts only GLOBAL tool names and rejects scope-local
+  vendor names, and scoped registrations remain visible under any restriction.
+  The child's tool mask is applied by the `agent/created` listener instead —
+  see "Vendor tool surface on children" in §6.)
 - **`prepareContinuable(request) -> Promise<{ seed? }>`** — the *continuable
   capability*: its mere presence authorizes the native background route,
   `subagents.startContinuable({ provider, label, request, signal })`, which
@@ -162,9 +176,9 @@ A subagent *provider* backs one or more L2 subagent *types* visible to
   for the turn. The recipes forward verbatim to `spawn.prepareContinuable`.
   **Crucially, the continuable path never invokes `provider.start()`** — the
   continuation manager creates the child itself from the durable descriptor,
-  which records exactly the request's `agentOptions.provider`/`model`,
-  `persona`, and `toolFilter` for cold resume. Callers (i.e. `kernel_run`)
-  must therefore set all recipe fields on the request explicitly; the
+  which records exactly the request's `agentOptions.provider`/`model` and
+  `persona` for cold resume. Callers (i.e. `kernel_run`)
+  must therefore set those recipe fields on the request explicitly; the
   `start()` override above only covers the one-shot path.
 
 `subagents.list()` returns the type names currently registered;
@@ -238,20 +252,51 @@ These are hard-won facts distilled from each harness's own source. Do not
 "simplify" them casually — every header, header value, and block shape below was
 verified against real traffic.
 
-### 4.1 `kimi-kernel` — Anthropic Messages wire
+### 4.1 `kimi-kernel` — Anthropic Messages wire (Kimi Code CLI 0.39.1)
 
-- URL: `https://api.kimi.com/coding/v1/messages`.
-- Headers: `content-type: application/json`, `authorization: Bearer <key>`,
-  **`anthropic-version: 2023-06-01`**, and a `user-agent`.
-- Body is a standard Anthropic Messages request: `model`, `max_tokens`,
-  `messages`, optional `system`, optional `tools` (as
-  `{ name, description, input_schema }`), and a `thinking` block.
-- **Completion budget is clamped to remaining context (kimi-cli 1.49.0).**
-  The adapter estimates request tokens (`ascii/4` + 1 per non-ascii, plus a
-  1024-token safety margin) and sends `max_tokens = min(requested, remaining)`.
-  `KIMI_MODEL_MAX_COMPLETION_TOKENS` (alias `KIMI_MODEL_MAX_TOKENS`) is an
-  optional hard cap; `0` / a negative value disables clamping. Catalog now
-  also lists `k3` (1M context) next to `k3-256k`.
+Verified against a LIVE 0.39.1 capture
+(`.glm-test/kimi-code-distill/capture/req-*.json`; full distillation in that
+directory's `REPORT.md`).
+
+- URL: `https://api.kimi.com/coding/v1/messages?beta=true`.
+- Auth: **`x-api-key: <OAuth access_token or static api_key>`** — NO
+  `Authorization` header on `/messages`. `Bearer` is reserved for
+  `/models`, `/usages`, `/me`, `/search`, `/fetch`. The OAuth path still goes
+  through `freshKimiKey()` (in-process device-flow refresh against
+  `auth.kimi.com`, write-back to the resolved credential file).
+- Headers: `content-type: application/json`, `anthropic-version: 2023-06-01`,
+  **`anthropic-beta: context-management-2025-06-27`**, `user-agent:
+  kimi-code-cli/0.39.1`, `x-msh-platform: kimi_code_cli`,
+  `x-msh-version: 0.39.1`, and the `X-Msh-Device-*` group
+  (`-name` = `os.hostname()`, `-model` = `"<os.type> <os.release> <os.arch>"`,
+  `-os-version` = `os.release()`, `-device-id` = `<kimi-code home>/device_id`).
+  The whole device group is skipped when no `device_id` file exists.
+- Body is a standard Anthropic Messages request plus 0.39.1 extras:
+  - `thinking: {"type":"enabled"}` (0.39.1 is effort-based, NOT a token
+    budget — the 1.49 `budget_tokens` ladder is gone) plus
+    **`output_config: { effort }`** with the effort ladder
+    `low|medium|high|xhigh|max` (default `high`);
+  - **`context_management: { edits: [{ type: "clear_thinking_20251015", keep: "all" }] }`**
+    (requires the `anthropic-beta` header above);
+  - **`metadata: { user_id: "session_<uuid>" }`** — one random uuid per adapter
+    registration (upstream likewise generates one per CLI process);
+  - **`system` as a single text block** with `cache_control:
+    { type: "ephemeral" }` (`systemCacheControl: true` in the factory);
+  - `stream: true`.
+  The extras ride on the thinking block: a `session-title` call nulls
+  `thinking` and sends NONE of them.
+- **Completion budget: hard cap 128000, clamped to remaining context.**
+  Upstream's `FALLBACK_MAX_TOKENS = 128000` is both the constructor fallback
+  and the cap (captured `max_tokens: 128000` on a small request). The adapter
+  estimates request tokens (`ascii/4` + 1 per non-ascii, plus a 1024-token
+  safety margin) and sends `max_tokens = min(min(requested || 128000, 128000),
+  remaining)`, floor 1 (`clampHardCap: 128000` on the shared clamp helper —
+  minimax keeps the old 32000 default).
+  `KIMI_MODEL_MAX_COMPLETION_TOKENS` (alias `KIMI_MODEL_MAX_TOKENS`) remains an
+  optional hard cap; `0` / a negative value disables clamping. The catalog
+  lists `k3-256k` (262144/131072), `k3` (1M/131072), and `kimi-for-coding`
+  "Kimi K2.7 Code" (262144/32768); upstream also ships
+  `kimi-for-coding-highspeed` (262144/32768) in its embedded catalog.
 - **Thinking replay is verified — no signature replay needed.** Kimi returns
   `thinking` blocks in the response and accepts them back without the
   `signature` field that stock Anthropic requires for thinking passthrough.
@@ -267,12 +312,12 @@ verified against real traffic.
   as a USER message in the parent, and sending those as `thinking`/`tool_use`
   makes kimi reject the turn (`Invalid request: tokenization failed`).
   `_test` named export exposes the adapter factories so a
-  local-HTTP-stub regression test can assert the wire shape offline.
+  local-HTTP-stub regression test can assert the wire shape offline (wire test
+  11 asserts the full 0.39.1 body shape).
   (The Responses-wire factory in §4.2 was already role-safe: its user branch
   only ever emits text / `function_call_output` items.)
-- `thinkingFor` here always returns `{ type: 'enabled', budget_tokens: 16384 }`,
-  so Kimi always thinks. Finish reasons come from `resp.stop_reason`
-  (`max_tokens` → `max-tokens`, presence of `tool_use` → `tool-calls`).
+- Finish reasons come from `resp.stop_reason` (`max_tokens` → `max-tokens`,
+  presence of `tool_use` → `tool-calls`).
 
 ### 4.2 `grok-kernel` — Responses wire (via proxy)
 
@@ -283,7 +328,8 @@ verified against real traffic.
   2. `authorization: Bearer <key>`
   3. `X-XAI-Token-Auth: xai-grok-cli`
   4. `x-authenticateresponse: authenticate-response`
-  5. one of `x-grok-client-mode: headless` and `x-grok-client-version: 1.0.3`
+  5. one of `x-grok-client-mode: headless` and `x-grok-client-version: 1.0.12`
+  (tracks `crates/codegen/xai-grok-version/Cargo.toml`)
   (plus `user-agent`)
 - Body is a Responses request: `model`, `input` (an item list), optional
   `reasoning: { effort, summary }`, optional `tools` (as
@@ -297,8 +343,9 @@ verified against real traffic.
   `reasoning` block), but the proxy will not accept `reasoning` items back on a
   subsequent request. The adapter therefore never replays reasoning into the
   `input` list — past reasoning is simply dropped.
-- Effort is mapped: DSH efforts `max` / `xhigh` are collapsed to `high`; only
-  `low` / `medium` / `high` pass through.
+- Effort is mapped: `low` / `medium` / `high` / `xhigh` pass through verbatim
+  (upstream's wire enum accepts them 1:1 and grok-4.6 advertises `xhigh`);
+  only `max` — advertised by no catalog model — collapses to `xhigh`.
 
 ### 4.3 `codex-kernel` — Responses wire (custom base URL)
 
@@ -309,7 +356,13 @@ verified against real traffic.
 - URL = `base_url` (trailing slashes stripped) + `/responses`.
 - Headers: `content-type`, `authorization: Bearer <key>`, `user-agent`.
 - Effort model is binary: `high` → `{ effort: 'high', summary: 'concise' }`,
-  anything else (e.g. `none`) → no `reasoning` field at all.
+  anything else (e.g. `none`) → no `reasoning` field at all. Deliberate
+  divergence from upstream 0.151.0 (whose gpt-5.6 defaults are effort `low` /
+  summary `none`): `high` + `concise` matches the DSH quality bar and surfaces
+  reasoning summaries in the UI. The codex persona is model-aware: recipes and
+  the vendor plugin's own persona pick `SYSTEM_PROMPT_GPT56` for `gpt-5.6-*`
+  models via `personaForModel` (models.json `instructions_template`), and this
+  module re-derives recipe personas whenever it overrides codex recipe models.
 
 ### 4.4 `minimax-kernel` — Anthropic Messages wire (CN, direct)
 
@@ -345,8 +398,8 @@ plain Linux, macOS) behave exactly as before with a single root.
 
 | Kernel | Location | Extracted field |
 | --- | --- | --- |
-| kimi | `~/.kimi-code/config.toml` | `[providers.kimi-for-coding].api_key` |
-| grok | `~/.grok/auth.json` | first key's `.key` |
+| kimi | `~/.kimi-code/credentials/kimi-code.json` (OAuth, preferred) + `~/.kimi-code/config.toml` | `access_token` (OAuth) / `[providers.kimi-for-coding].api_key` (static fallback) |
+| grok | `~/.grok/auth.json` | first key's `.key`; the 6 h JWT is **auto-refreshed in-process** (OIDC `grant_type=refresh_token` against `<oidc_issuer>/oauth2/token`, rotated RT written back to the resolved file — mirrors grok-build's `oidc_refresher.rs`) |
 | codex | `~/.codex/config.toml` + `~/.codex/auth.json` | `base_url`, `model`, `OPENAI_API_KEY` |
 | minimax | `~/.mini-agent/config.yaml` (fallback `~/.config/mini-agent/config.yaml`) | `api_key` (`sk-...`) |
 
@@ -364,10 +417,10 @@ allow-list. `kernel_run` maps `kernel` + `type` onto these recipe names.
 
 | Recipe name | provider | model | toolFilter (allow) |
 | --- | --- | --- | --- |
-| `kimi-agent` | `kimi-kernel` | `k3-256k` | `Shell` `ReadFile` `WriteFile` `StrReplaceFile` `Glob` `Grep` `SearchWeb` `FetchURL` `ReadMediaFile` `TaskList` `TaskOutput` `TaskStop` `SetTodoList` `EnterPlanMode` `ExitPlanMode` |
-| `kimi-explore` | `kimi-kernel` | `k3-256k` | `Shell` `ReadFile` `ReadMediaFile` `Glob` `Grep` `SearchWeb` `FetchURL` |
-| `kimi-plan` | `kimi-kernel` | `k3-256k` | `ReadFile` `ReadMediaFile` `Glob` `Grep` `SearchWeb` `FetchURL` (no shell, no write) |
-| `grok-agent` | `grok-kernel` | `grok-4.6` | `run_terminal_cmd` `read_file` `search_replace` `list_dir` `grep` `web_search` `web_fetch` `todo_write` `task` `get_task_output` `kill_task` `ask_user_question` `enter_plan_mode` `exit_plan_mode` |
+| `kimi-agent` | `kimi-kernel` | `k3-256k` | `Bash` `CronCreate` `CronDelete` `CronList` `Edit` `EnterPlanMode` `ExitPlanMode` `Glob` `Grep` `Read` `ReadMediaFile` `Skill` `TaskList` `TaskOutput` `TaskStop` `TodoList` `WaitFor` `WebSearch` `FetchURL` `Write` (0.39.1 `CODER_TOOLS` minus `mcp__*`; **no `Agent`/`AgentSwarm`** — upstream PR #2837) |
+| `kimi-explore` | `kimi-kernel` | `k3-256k` | `Bash` `Read` `ReadMediaFile` `Glob` `Grep` `WebSearch` `FetchURL` |
+| `kimi-plan` | `kimi-kernel` | `k3-256k` | `Read` `ReadMediaFile` `Glob` `Grep` `WebSearch` `FetchURL` (no shell, no write) |
+| `grok-agent` | `grok-kernel` | `grok-4.6` | `run_terminal_cmd` `read_file` `search_replace` `list_dir` `grep` `web_search` `web_fetch` `todo_write` `task` `get_task_output` `kill_task` `enter_plan_mode` `exit_plan_mode` (upstream strips `ask_user_question` and `workflow` from every subagent) |
 | `grok-explore` | `grok-kernel` | `grok-4.6` | `read_file` `list_dir` `grep` (read-only, no shell, no web) |
 | `grok-plan` | `grok-kernel` | `grok-4.6` | `read_file` `list_dir` `grep` `web_search` `todo_write` (read-only, no shell, no edit) |
 | `codex-agent` | `codex-kernel` | (from config) | full Codex surface (all 28 tools) |
@@ -402,10 +455,12 @@ one-shot foreground path):
    `agent.options.kernelSubagentType` (fresh creation) or, on cold resume, from
    the persisted persona in the seeded `subagent/descriptor` session event;
 2. the listener mounts the vendor plugin on `agent.ctx` with
-   `{ skipPersona: true }` (tools only — the persona is already registered from
-   the request/descriptor), then
-3. `tools.restrict({ allow: recipe.toolFilter.allow })` to the subagent's own
-   tool set.
+   `{ skipPersona: true, tools: recipe.toolFilter.allow }` (the vendor plugin
+   registers ONLY the whitelisted names — the recipe allow-list is enforced at
+   registration time, because since dsh-tools 0.1.1-rc.2 scope-local tools can
+   no longer be named in a restriction), then
+3. `tools.restrict({ allow: [] })` masks every inherited GLOBAL tool (parent
+   preset + host), leaving the child's own scope-local vendor tools visible.
 
 The vendor plugin modules are pre-loaded at `apply()` time (`VENDOR_MODULES`) so
 the synchronous listener can mount them. `kernel_run` and the L2 provider's
@@ -433,9 +488,12 @@ These are documented limitations, not bugs to "fix" blindly — several require
 upstream or harness changes beyond this package.
 
 1. **Kimi thinking signature side table.** Kimi's thinking replay works without
-   the Anthropic `signature` field, but there is no side table reconciling
-   thinking blocks across a multi-turn conversation. Long Kimi conversations with
-   heavy tool use may still drop reasoning in some sequences.
+   the Anthropic `signature` field, and 0.39.1's
+   `context_management.edits: [clear_thinking_20251015, keep: "all"]` asks the
+   provider to keep thinking blocks across turns, but there is still no local
+   side table reconciling thinking blocks across a multi-turn conversation.
+   Long Kimi conversations with heavy tool use may still drop reasoning in some
+   sequences.
 2. **Grok reasoning replay shape.** Grok emits reasoning as `reasoning.summary`
    items; the proxy rejects replayed reasoning, so past Grok reasoning is
    discarded. There is no lossless way to echo it back in the current Responses
