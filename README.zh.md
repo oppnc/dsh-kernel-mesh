@@ -50,13 +50,17 @@ system-prompt 段（`complete: true` + `suppressRuntimeContext()`），所以跑
 
 ## 安装
 
-用官方插件命令把 bundle 装进你的 profile：
+用官方插件命令把 bundle 装进你的 profile。优先走 npm（预构建，无需 `allowBuilds`）：
+
+```sh
+dsh plugin --profile web add dsh-kernel-mesh
+```
+
+GitHub 也可以，因为本仓库已经提交了 `lib/`：
 
 ```sh
 dsh plugin --profile web add github:oppnc/dsh-kernel-mesh
 ```
-
-包发布到 npm 之后，同一条命令改用包名（`dsh-kernel-mesh`）更好——预构建，无需 `allowBuilds`。
 
 `dsh plugin` 会转发给 pnpm，并自动 reconcile `dsh.profile.bundles`——本包声明了 `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`，因此会加入 profile 的配置层栈。装完后重启 profile：
 
@@ -67,7 +71,7 @@ dsh web
 再安装预设所引用的内核 surface 插件（每个都是普通插件，作为不激活依赖安装，由预设行按名字解析）：
 
 ```sh
-dsh plugin --profile web add github:oppnc/dsh-kernel-kimi github:oppnc/dsh-kernel-grok github:oppnc/dsh-kernel-codex github:oppnc/dsh-kernel-minimax
+dsh plugin --profile web add dsh-kernel-kimi dsh-kernel-grok dsh-kernel-codex dsh-kernel-minimax
 ```
 
 安装四个内核 agent 预设：从已安装的 mesh 包里复制到官方用户预设根目录：

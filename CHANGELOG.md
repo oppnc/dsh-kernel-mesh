@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- **npm.** `dsh-kernel-mesh@0.1.7` is on the registry. Preferred install is now `dsh plugin --profile web add dsh-kernel-mesh`.
+
 ## 0.1.7
 
 - **Publish channels.** Preferred install is `dsh plugin --profile web add dsh-kernel-mesh` (npm, once published); GitHub remains a fallback because `lib/` ships in the repository. Keywords include `dsh-plugin`. Storefront screenshots are declared in `screenshots.json`. The awesome-dsh-plugin entry lives in `docs/awesome-dsh-plugin.yml`.
