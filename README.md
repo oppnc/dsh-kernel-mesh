@@ -58,6 +58,8 @@ Install the bundle into your profile with the official plugin command:
 dsh plugin --profile web add github:oppnc/dsh-kernel-mesh
 ```
 
+Once the package is on npm, the same command with the package name (`dsh-kernel-mesh`) is preferred — prebuilt, no `allowBuilds`.
+
 `dsh plugin` forwards to pnpm and reconciles `dsh.profile.bundles` automatically — this package declares `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`, so it joins the profile's layer stack. Restart the profile afterwards:
 
 ```sh

@@ -1,6 +1,6 @@
 {
   "name": "dsh-kernel-mesh",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Host-plane kernel mesh for DeepSeek Harness: kimi/grok/codex/minimax kernel adapters, L2 subagent recipes, and kernel tools.",
   "type": "module",
   "main": "lib/index.js",
@@ -21,7 +21,8 @@
     "README.i18n.yaml",
     "AGENTS.md",
     "AGENTS.zh-CN.md",
-    "docs/"
+    "docs/",
+    "screenshots.json"
   ],
   "scripts": {
     "test": "node --check lib/index.js && node --check lib/search-backends.js && node test/wire.test.js && node test/cred-paths.test.js && node test/search-offer.test.js"
@@ -31,6 +32,7 @@
   },
   "keywords": [
     "dsh",
+    "dsh-plugin",
     "deepseek-harness",
     "cordis",
     "kimi",
@@ -39,6 +41,10 @@
     "minimax"
   ],
   "license": "MIT",
+  "homepage": "https://github.com/oppnc/dsh-kernel-mesh#readme",
+  "bugs": {
+    "url": "https://github.com/oppnc/dsh-kernel-mesh/issues"
+  },
   "publishConfig": {
     "access": "public"
   },

@@ -56,6 +56,8 @@ system-prompt 段（`complete: true` + `suppressRuntimeContext()`），所以跑
 dsh plugin --profile web add github:oppnc/dsh-kernel-mesh
 ```
 
+包发布到 npm 之后，同一条命令改用包名（`dsh-kernel-mesh`）更好——预构建，无需 `allowBuilds`。
+
 `dsh plugin` 会转发给 pnpm，并自动 reconcile `dsh.profile.bundles`——本包声明了 `"dsh": { "bundle": { "patch": "./cordis.patch.yml" } }`，因此会加入 profile 的配置层栈。装完后重启 profile：
 
 ```sh
